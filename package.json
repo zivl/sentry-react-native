@@ -45,6 +45,7 @@
     "@sentry/hub": "^5.24.2",
     "@sentry/integrations": "^5.24.2",
     "@sentry/react": "^5.24.2",
+    "@sentry/tracing": "^5.24.2",
     "@sentry/types": "^5.24.2",
     "@sentry/utils": "^5.24.2",
     "@sentry/wizard": "^1.1.4"
