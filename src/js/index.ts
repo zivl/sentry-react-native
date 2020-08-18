@@ -32,7 +32,10 @@ export {
   setTags,
   setUser,
   withScope,
+  startTransaction,
 } from "@sentry/core";
+
+import "@sentry/tracing";
 
 export {
   Integrations as BrowserIntegrations,

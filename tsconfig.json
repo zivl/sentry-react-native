@@ -1,10 +1,21 @@
 {
   "extends": "./tsconfig.build.json",
-  "include": ["src/js/*.ts", "src/js/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
+  "include": [
+    "src/js/**/*.ts",
+    "src/js/**/*.tsx",
+    "test/**/*.ts",
+    "test/**/*.tsx",
+    "sample/**/*.ts",
+    "sample/**/*.tsx"
+  ],
   "exclude": ["dist"],
   "compilerOptions": {
     "rootDir": ".",
     "jsx": "react-native",
-    "types": ["jest"]
+    "types": ["jest"],
+    "resolveJsonModule": true,
+    "paths": {
+      "@sentry/react-native": ["./dist"]
+    }
   }
 }

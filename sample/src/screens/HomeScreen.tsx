@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
+import {useNavigation, NavigationProp} from '@react-navigation/native';
 
 import {
   Header,
@@ -26,14 +27,12 @@ import {
   ReloadInstructions,
 } from 'react-native/Libraries/NewAppScreen';
 
-import {Provider} from 'react-redux';
 import * as Sentry from '@sentry/react-native';
 
-import {version as packageVersion} from './package.json';
+import {version as packageVersion} from '../../package.json';
 
 import {getTestProps} from './utils/getTestProps';
-import {store} from './reduxApp';
-import Counter from './Counter';
+import Counter from '../components/Counter';
 
 const SetScopePropertiesButton = (props) => {
   return (
@@ -45,7 +44,11 @@ const SetScopePropertiesButton = (props) => {
 
 SetScopePropertiesButton.displayName = 'SetScopeProperties';
 
-const App = () => {
+interface Props {
+  navigation: NavigationProp<never>;
+}
+
+const HomeScreen = (props: Props) => {
   // Show bad code inside error boundary to trigger it.
   const [showBadCode, setShowBadCode] = React.useState(false);
   const [eventId, setEventId] = React.useState(null);
@@ -73,6 +76,8 @@ const App = () => {
       sessionTrackingIntervalMillis: 5000,
     });
   }, []);
+
+  const transaction = React.useRef(null);
 
   const setScopeProps = () => {
     const dateString = new Date().toString();
@@ -162,7 +167,7 @@ const App = () => {
   };
 
   return (
-    <Provider store={store}>
+    <>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView>
         <ScrollView
@@ -233,6 +238,43 @@ const App = () => {
                 </TouchableOpacity>
               </Sentry.ErrorBoundary>
               <Counter />
+              <TouchableOpacity
+                onPress={() => {
+                  const t = Sentry.startTransaction({
+                    name: 'rn-test',
+                  });
+
+                  const span = t.startChild({
+                    data: {
+                      boo: 1,
+                    },
+                    op: 'task',
+                    description: `processing shopping cart result`,
+                  });
+
+                  setTimeout(() => {
+                    span.finish();
+                  }, 500);
+
+                  transaction.current = t;
+                }}>
+                <Text style={styles.sectionTitle}>Start Transaction</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  if (transaction.current) {
+                    transaction.current.finish();
+                    transaction.current = null;
+                  }
+                }}>
+                <Text style={styles.sectionTitle}>End Transaction</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  props.navigation.navigate({name: 'Tracker'});
+                }}>
+                <Text style={styles.sectionTitle}>Open Tracker</Text>
+              </TouchableOpacity>
               <Text style={styles.sectionTitle}>Step One</Text>
               <Text style={styles.sectionDescription}>
                 Edit <Text style={styles.highlight}>App.js</Text> to change this
@@ -261,7 +303,7 @@ const App = () => {
           </View>
         </ScrollView>
       </SafeAreaView>
-    </Provider>
+    </>
   );
 };
 
@@ -304,4 +346,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Sentry.withTouchEventBoundary(App);
+export default HomeScreen;
