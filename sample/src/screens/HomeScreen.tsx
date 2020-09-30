@@ -31,7 +31,7 @@ import * as Sentry from '@sentry/react-native';
 
 import {version as packageVersion} from '../../package.json';
 
-import {getTestProps} from './utils/getTestProps';
+import {getTestProps} from '../../utils/getTestProps';
 import Counter from '../components/Counter';
 
 const SetScopePropertiesButton = (props) => {
@@ -274,6 +274,12 @@ const HomeScreen = (props: Props) => {
                   props.navigation.navigate({name: 'Tracker'});
                 }}>
                 <Text style={styles.sectionTitle}>Open Tracker</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  props.navigation.navigate({name: 'PerformanceTest'});
+                }}>
+                <Text style={styles.sectionTitle}>Open Performance Test</Text>
               </TouchableOpacity>
               <Text style={styles.sectionTitle}>Step One</Text>
               <Text style={styles.sectionDescription}>

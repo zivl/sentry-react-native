@@ -7,6 +7,7 @@ import {createStackNavigator} from '@react-navigation/stack';
 
 import HomeScreen from './screens/HomeScreen';
 import TrackerScreen from './screens/TrackerScreen';
+import PerformanceTestScreen from './screens/PerformanceTestScreen';
 
 import {store} from './reduxApp';
 
@@ -40,10 +41,11 @@ const Stack = createStackNavigator();
 const App = () => {
   return (
     <Provider store={store}>
-      <NavigationContainer onStateChange={() => {}}>
+      <NavigationContainer>
         <Stack.Navigator>
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Tracker" component={TrackerScreen} />
+          <Stack.Screen name="PerformanceTest" component={PerformanceTestScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </Provider>
