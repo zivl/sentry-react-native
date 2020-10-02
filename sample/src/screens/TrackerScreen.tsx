@@ -48,7 +48,7 @@ const TrackerScreen = () => {
             />
           </>
         ) : (
-          <ActivityIndicator size="small" />
+          <ActivityIndicator size="small" color="#F6F6F8" />
         )}
       </View>
     </View>
@@ -92,8 +92,11 @@ const styles = StyleSheet.create({
     borderColor: '#79628C',
     borderRadius: 6,
     backgroundColor: '#F6F6F8',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statisticContainer: {
+    width: '100%',
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',

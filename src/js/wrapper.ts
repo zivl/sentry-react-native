@@ -52,6 +52,9 @@ export const NATIVE = {
         type: "event",
       });
       const envelope = `${header}\n${item}\n${payload}`;
+
+      console.log("envelope", envelope);
+
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       return RNSentry.captureEnvelope(envelope);
     }

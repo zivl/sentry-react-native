@@ -1,68 +1,63 @@
-import { startTransaction } from "@sentry/core";
-import { Hub } from "@sentry/hub";
-import { BrowserTracing } from "@sentry/tracing/dist/browser";
-import { BrowserTracingOptions } from "@sentry/tracing/dist/browser/browsertracing";
 import {
-  EventProcessor,
-  Integration,
-  Transaction,
-  TransactionContext,
-} from "@sentry/types";
+  defaultRequestInstrumentionOptions,
+  registerRequestInstrumentation,
+  RequestInstrumentationOptions,
+} from "@sentry/tracing";
+import { EventProcessor, Hub, Integration } from "@sentry/types";
 
-type NavigationEvent = {
-  target: string | undefined;
-};
+// type NavigationEvent = {
+//   target: string | undefined;
+// };
 
-type NavigationProp = {
-  addListener: (type: string, callback: (e: NavigationEvent) => void) => void;
-};
+// type NavigationProp = {
+//   addListener: (type: string, callback: (e: NavigationEvent) => void) => void;
+// };
 
-/**
- *
- */
-function createInstrumentation(): { onStateChange: () => void } {
-  return (
-    startTransaction,
-    startTransactionOnPageLoad,
-    startTransactionOnLocationChange
-  ) => {
-    return reactNativeRoutingInstrumentation();
-  };
+interface ReactNativeTracingOptions extends RequestInstrumentationOptions {
+  a: 0;
 }
 
 /**
  *
  */
-function reactNativeRoutingInstrumentation<T extends Transaction>(
-  startTransaction: (context: TransactionContext) => T | undefined,
-  startTransactionOnPageLoad: boolean = true,
-  startTransactionOnLocationChange: boolean = true,
-  onStateChange: () => void
-): void {
-  let activeTransaction: T | undefined;
+export class ReactNativeTracing implements Integration {
+  public name: string;
+  public options: ReactNativeTracingOptions;
 
-  if (startTransactionOnLocationChange) {
-    onStateChange(() => {
-      console.log("boo");
-    });
-  }
-}
+  // @ts-ignore
+  private _getCurrentHub?: () => Hub;
 
-interface ReactNativeTracingOptions extends BrowserTracingOptions {
-  navigation: NavigationProp;
-}
-
-/**
- *
- */
-export class ReactNativeTracing extends BrowserTracing implements Integration {
-  public constructor(_options?: Partial<ReactNativeTracingOptions>) {
-    const options = {
-      ...(_options ?? {}),
-      routingInstrumentation: (...args) =>
-        reactNativeRoutingInstrumentation(...args, _options.navigation),
+  public constructor(_options: Partial<ReactNativeTracingOptions>) {
+    this.name = "ReactNativeTracing";
+    this.options = {
+      ..._options,
+      ...defaultRequestInstrumentionOptions,
+      a: 0,
     };
+  }
 
-    super(options);
+  /**
+   *
+   */
+  setupOnce(
+    _: (callback: EventProcessor) => void,
+    getCurrentHub: () => Hub
+  ): void {
+    this._getCurrentHub = getCurrentHub;
+
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const {
+      traceFetch,
+      traceXHR,
+      tracingOrigins,
+      shouldCreateSpanForRequest,
+    } = this.options;
+
+    registerRequestInstrumentation({
+      traceFetch,
+      traceXHR,
+      tracingOrigins,
+      shouldCreateSpanForRequest,
+    });
   }
 }

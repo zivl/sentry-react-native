@@ -1,7 +1,7 @@
 import React from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 
-const PerformanceTestScreen = (props) => {
+const PerformanceTestScreen = () => {
   const initialDate = React.useRef();
   const initialPerformance = React.useRef();
 
@@ -9,15 +9,20 @@ const PerformanceTestScreen = (props) => {
   const [dateTime, setDateTime] = React.useState(0);
 
   React.useEffect(() => {
-    initialDate.current = Date.now();
-    initialPerformance.current = performance.now();
+    // @ts-ignore
+    if (typeof global.performance !== 'undefined') {
+      initialDate.current = Date.now();
+      // @ts-ignore
+      initialPerformance.current = global.performance.now();
 
-    const interval = setInterval(() => {
-      setPerformanceTime(performance.now());
-      setDateTime(Date.now());
-    }, 1000);
+      const interval = setInterval(() => {
+        // @ts-ignore
+        setPerformanceTime(global.performance.now());
+        setDateTime(Date.now());
+      }, 1000);
 
-    return () => clearInterval(interval);
+      return () => clearInterval(interval);
+    }
   }, []);
 
   const performanceElapsed = Math.floor(

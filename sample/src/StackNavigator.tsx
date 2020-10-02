@@ -28,6 +28,10 @@ Sentry.init({
   integrations: [
     new Sentry.Integrations.ReactNativeTracing({
       tracingOrigins: [/^https:\/\/api.covid19api.com/g],
+      shouldCreateSpanForRequest: (req) => {
+        console.log(req);
+        return true;
+      },
     }),
   ],
   enableAutoSessionTracking: true,
@@ -45,7 +49,10 @@ const App = () => {
         <Stack.Navigator>
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Tracker" component={TrackerScreen} />
-          <Stack.Screen name="PerformanceTest" component={PerformanceTestScreen} />
+          <Stack.Screen
+            name="PerformanceTest"
+            component={PerformanceTestScreen}
+          />
         </Stack.Navigator>
       </NavigationContainer>
     </Provider>

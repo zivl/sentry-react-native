@@ -15,7 +15,8 @@
     "types": ["jest"],
     "resolveJsonModule": true,
     "paths": {
-      "@sentry/react-native": ["./dist"]
+      "@sentry/react-native": ["./dist"],
+      "@sentry/tracing": ["../sentry-javascript/packages/tracing"]
     }
   }
 }

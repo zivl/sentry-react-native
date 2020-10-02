@@ -53,29 +53,29 @@ const HomeScreen = (props: Props) => {
   const [showBadCode, setShowBadCode] = React.useState(false);
   const [eventId, setEventId] = React.useState(null);
 
-  React.useEffect(() => {
-    Sentry.init({
-      dsn:
-        // Replace the example DSN below with your own DSN:
-        'https://6890c2f6677340daa4804f8194804ea2@o19635.ingest.sentry.io/148053',
-      debug: true,
-      beforeSend: (e) => {
-        if (!e.tags) {
-          e.tags = {};
-        }
-        e.tags['beforeSend'] = 'JS layer';
+  // React.useEffect(() => {
+  //   Sentry.init({
+  //     dsn:
+  //       // Replace the example DSN below with your own DSN:
+  //       'https://6890c2f6677340daa4804f8194804ea2@o19635.ingest.sentry.io/148053',
+  //     debug: true,
+  //     beforeSend: (e) => {
+  //       if (!e.tags) {
+  //         e.tags = {};
+  //       }
+  //       e.tags['beforeSend'] = 'JS layer';
 
-        console.log('Event beforeSend:', e);
+  //       console.log('Event beforeSend:', e);
 
-        setEventId(e.event_id);
+  //       setEventId(e.event_id);
 
-        return e;
-      },
-      enableAutoSessionTracking: true,
-      // For testing, session close when 5 seconds (instead of the default 30) in the background.
-      sessionTrackingIntervalMillis: 5000,
-    });
-  }, []);
+  //       return e;
+  //     },
+  //     enableAutoSessionTracking: true,
+  //     // For testing, session close when 5 seconds (instead of the default 30) in the background.
+  //     sessionTrackingIntervalMillis: 5000,
+  //   });
+  // }, []);
 
   const transaction = React.useRef(null);
 
@@ -242,7 +242,10 @@ const HomeScreen = (props: Props) => {
                 onPress={() => {
                   const t = Sentry.startTransaction({
                     name: 'rn-test',
+                    sampled: true,
                   });
+
+                  t.sampled = true;
 
                   const span = t.startChild({
                     data: {
@@ -250,6 +253,7 @@ const HomeScreen = (props: Props) => {
                     },
                     op: 'task',
                     description: `processing shopping cart result`,
+                    sampled: true,
                   });
 
                   setTimeout(() => {
