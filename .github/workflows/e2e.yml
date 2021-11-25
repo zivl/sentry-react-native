@@ -41,7 +41,7 @@ jobs:
         working-directory: ./sample
         run: yarn run appium --log-timestamp --log-no-colors --allow-insecure chromedriver_autodownload > appium.log &
       - name: Run Android Emulator
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@066fd9b4b00a7024ee0c581ed9644005303418c6
         with:
           api-level: 29
           # All the tests need to be run in this script as the emulator is killed after this command.
