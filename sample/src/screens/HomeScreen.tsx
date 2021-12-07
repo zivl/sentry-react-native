@@ -194,6 +194,22 @@ const HomeScreen = (props: Props) => {
               <Text style={styles.buttonText}>Set Scope Properties</Text>
             </TouchableOpacity>
             <View style={styles.spacer} />
+            <TouchableOpacity
+              onPress={async () => {
+                await Sentry.flush();
+                console.log('Sentry.flush() completed.');
+              }}>
+              <Text style={styles.buttonText}>Flush</Text>
+            </TouchableOpacity>
+            <View style={styles.spacer} />
+            <TouchableOpacity
+              onPress={async () => {
+                await Sentry.close();
+                console.log('Sentry.close() completed.');
+              }}>
+              <Text style={styles.buttonText}>Close</Text>
+            </TouchableOpacity>
+            <View style={styles.spacer} />
             <Sentry.ErrorBoundary
               fallback={({eventId}) => (
                 <Text>Error boundary caught with event id: {eventId}</Text>

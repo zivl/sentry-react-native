@@ -1,4 +1,7 @@
 import { BrowserOptions } from "@sentry/react";
+import { ProfilerProps } from "@sentry/react/dist/profiler";
+
+import { TouchEventBoundaryProps } from "./touchevents";
 
 /**
  * Configuration options for the Sentry ReactNative SDK.
@@ -52,10 +55,37 @@ export interface ReactNativeOptions extends BrowserOptions {
   attachThreads?: boolean;
 
   /**
+   *  When enabled, certain personally identifiable information (PII) is added by active integrations.
+   *
+   * @default false
+   * */
+  sendDefaultPii?: boolean;
+
+  /**
    * Callback that is called after the RN SDK on the JS Layer has made contact with the Native Layer.
    */
   onReady?: (response: {
     /** `true` if the native SDK has been initialized, `false` otherwise.  */
     didCallNativeInit: boolean;
   }) => void;
+
+  /** Enable auto performance tracking by default. */
+  enableAutoPerformanceTracking?: boolean;
+
+  /**
+   * Enables Out of Memory Tracking for iOS and macCatalyst.
+   * See the following link for more information and possible restrictions:
+   * https://docs.sentry.io/platforms/apple/guides/ios/configuration/out-of-memory/
+   *
+   * @default true
+   * */
+   enableOutOfMemoryTracking?: boolean;
+}
+
+export interface ReactNativeWrapperOptions {
+  /** Props for the root React profiler */
+  profilerProps?: ProfilerProps;
+
+  /** Props for the root touch event boundary */
+  touchEventBoundaryProps?: TouchEventBoundaryProps;
 }

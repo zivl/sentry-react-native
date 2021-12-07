@@ -1,17 +1,21 @@
 package io.sentry.react;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.util.SparseIntArray;
+
+import androidx.core.app.FrameMetricsAggregator;
 
 import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.LifecycleEventListener;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReadableMapKeySetIterator;
-import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.module.annotations.ReactModule;
 
@@ -19,27 +23,28 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import io.sentry.SentryEvent;
 import io.sentry.android.core.AnrIntegration;
+import io.sentry.android.core.AppStartState;
 import io.sentry.android.core.NdkIntegration;
 import io.sentry.android.core.SentryAndroid;
-import io.sentry.Sentry;
 import io.sentry.Breadcrumb;
 import io.sentry.HubAdapter;
 import io.sentry.Integration;
+import io.sentry.Sentry;
 import io.sentry.SentryLevel;
-import io.sentry.SentryOptions;
 import io.sentry.UncaughtExceptionHandlerIntegration;
 import io.sentry.protocol.SdkVersion;
 import io.sentry.protocol.SentryException;
+import io.sentry.protocol.SentryPackage;
 import io.sentry.protocol.User;
 
 @ReactModule(name = RNSentryModule.NAME)
@@ -50,6 +55,13 @@ public class RNSentryModule extends ReactContextBaseJavaModule {
     final static Logger logger = Logger.getLogger("react-native-sentry");
 
     private static PackageInfo packageInfo;
+    private static boolean didFetchAppStart = false;
+    private static FrameMetricsAggregator frameMetricsAggregator = null;
+
+    // 700ms to constitute frozen frames.
+    private final int FROZEN_FRAME_THRESHOLD = 700;
+    // 16ms (slower than 60fps) to constitute slow frames.
+    private final int SLOW_FRAME_THRESHOLD = 16;
 
     public RNSentryModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -70,8 +82,12 @@ public class RNSentryModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void startWithOptions(final ReadableMap rnOptions, Promise promise) {
+    public void initNativeSdk(final ReadableMap rnOptions, Promise promise) {
         SentryAndroid.init(this.getReactApplicationContext(), options -> {
+            if (rnOptions.hasKey("debug") && rnOptions.getBoolean("debug")) {
+                options.setDebug(true);
+                logger.setLevel(Level.INFO);
+            }
             if (rnOptions.hasKey("dsn") && rnOptions.getString("dsn") != null) {
                 String dsn = rnOptions.getString("dsn");
                 logger.info(String.format("Starting with DSN: '%s'", dsn));
@@ -79,9 +95,6 @@ public class RNSentryModule extends ReactContextBaseJavaModule {
             } else {
                 // SentryAndroid needs an empty string fallback for the dsn.
                 options.setDsn("");
-            }
-            if (rnOptions.hasKey("debug") && rnOptions.getBoolean("debug")) {
-                options.setDebug(true);
             }
             if (rnOptions.hasKey("maxBreadcrumbs")) {
                 options.setMaxBreadcrumbs(rnOptions.getInt("maxBreadcrumbs"));
@@ -96,7 +109,7 @@ public class RNSentryModule extends ReactContextBaseJavaModule {
                 options.setDist(rnOptions.getString("dist"));
             }
             if (rnOptions.hasKey("enableAutoSessionTracking")) {
-                options.setEnableSessionTracking(rnOptions.getBoolean("enableAutoSessionTracking"));
+                options.setEnableAutoSessionTracking(rnOptions.getBoolean("enableAutoSessionTracking"));
             }
             if (rnOptions.hasKey("sessionTrackingIntervalMillis")) {
                 options.setSessionTrackingIntervalMillis(rnOptions.getInt("sessionTrackingIntervalMillis"));
@@ -112,6 +125,19 @@ public class RNSentryModule extends ReactContextBaseJavaModule {
                 // by default we hide.
                 options.setAttachThreads(rnOptions.getBoolean("attachThreads"));
             }
+            if (rnOptions.hasKey("sendDefaultPii")) {
+                options.setSendDefaultPii(rnOptions.getBoolean("sendDefaultPii"));
+            }
+            if (rnOptions.hasKey("enableAutoPerformanceTracking") && rnOptions.getBoolean("enableAutoPerformanceTracking")) {
+                RNSentryModule.frameMetricsAggregator = new FrameMetricsAggregator();
+                Activity currentActivity = getCurrentActivity();
+
+                if (currentActivity != null) {
+                    RNSentryModule.frameMetricsAggregator.add(currentActivity);
+                }
+            } else {
+                this.disableNativeFramesTracking();
+            }
 
             options.setBeforeSend((event, hint) -> {
                 // React native internally throws a JavascriptException
@@ -126,25 +152,8 @@ public class RNSentryModule extends ReactContextBaseJavaModule {
                     // We do nothing
                 }
 
-                // Add on the correct event.origin tag.
-                // it needs to be here so we can determine where it originated from.
-                SdkVersion sdkVersion = event.getSdk();
-                if (sdkVersion != null) {
-                    String sdkName = sdkVersion.getName();
-                    if (sdkName != null) {
-                        if (sdkName.equals("sentry.javascript.react-native")) {
-                            event.setTag("event.origin", "javascript");
-                        } else if (sdkName.equals("sentry.java.android") || sdkName.equals("sentry.native")) {
-                            event.setTag("event.origin", "android");
-
-                            if (sdkName.equals("sentry.native")) {
-                                event.setTag("event.environment", "native");
-                            } else {
-                                event.setTag("event.environment", "java");
-                            }
-                        }
-                    }
-                }
+                setEventOriginTag(event);
+                addPackages(event, options.getSdkVersion());
 
                 return event;
             });
@@ -166,22 +175,87 @@ public class RNSentryModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void setLogLevel(int level) {
-        logger.setLevel(this.logLevel(level));
-    }
-
-    @ReactMethod
     public void crash() {
         throw new RuntimeException("TEST - Sentry Client Crash (only works in release mode)");
     }
 
     @ReactMethod
-    public void fetchRelease(Promise promise) {
+    public void fetchNativeRelease(Promise promise) {
         WritableMap release = Arguments.createMap();
         release.putString("id", packageInfo.packageName);
         release.putString("version", packageInfo.versionName);
         release.putString("build", String.valueOf(packageInfo.versionCode));
         promise.resolve(release);
+    }
+
+    @ReactMethod
+    public void fetchNativeAppStart(Promise promise) {
+        final AppStartState appStartInstance = AppStartState.getInstance();
+        final Date appStartTime = appStartInstance.getAppStartTime();
+
+        if (appStartTime == null) {
+            promise.resolve(null);
+        } else {
+            final double appStartTimestamp = (double) appStartTime.getTime();
+
+            WritableMap appStart = Arguments.createMap();
+
+            appStart.putDouble("appStartTime", appStartTimestamp);
+            appStart.putBoolean("isColdStart", appStartInstance.isColdStart());
+            appStart.putBoolean("didFetchAppStart", RNSentryModule.didFetchAppStart);
+
+            promise.resolve(appStart);
+        }
+        // This is always set to true, as we would only allow an app start fetch to only happen once
+        // in the case of a JS bundle reload, we do not want it to be instrumented again.
+        RNSentryModule.didFetchAppStart = true;
+    }
+
+    /**
+     * Returns frames metrics at the current point in time.
+     */
+    @ReactMethod
+    public void fetchNativeFrames(Promise promise) {
+        if (RNSentryModule.frameMetricsAggregator == null) {
+            promise.resolve(null);
+        } else {
+            try {
+                int totalFrames = 0;
+                int slowFrames = 0;
+                int frozenFrames = 0;
+
+                final SparseIntArray[] framesRates = RNSentryModule.frameMetricsAggregator.getMetrics();
+
+                if (framesRates != null) {
+                    final SparseIntArray totalIndexArray = framesRates[FrameMetricsAggregator.TOTAL_INDEX];
+                    if (totalIndexArray != null) {
+                        for (int i = 0; i < totalIndexArray.size(); i++) {
+                            int frameTime = totalIndexArray.keyAt(i);
+                            int numFrames = totalIndexArray.valueAt(i);
+                            totalFrames += numFrames;
+                            // hard coded values, its also in the official android docs and frame metrics API
+                            if (frameTime > FROZEN_FRAME_THRESHOLD) {
+                                // frozen frames, threshold is 700ms
+                                frozenFrames += numFrames;
+                            } else if (frameTime > SLOW_FRAME_THRESHOLD) {
+                                // slow frames, above 16ms, 60 frames/second
+                                slowFrames += numFrames;
+                            }
+                        }
+                    }
+                }
+
+                WritableMap map = Arguments.createMap();
+                map.putInt("totalFrames", totalFrames);
+                map.putInt("slowFrames", slowFrames);
+                map.putInt("frozenFrames", frozenFrames);
+
+                promise.resolve(map);
+            } catch (Exception e) {
+                logger.warning("Error fetching native frames.");
+                promise.resolve(null);
+            }
+        }
     }
 
     @ReactMethod
@@ -198,7 +272,7 @@ public class RNSentryModule extends ReactContextBaseJavaModule {
                 }
             }
         } catch (Exception e) {
-            logger.info("Error reading envelope");
+            logger.severe("Error reading envelope");
         }
         promise.resolve(true);
     }
@@ -216,21 +290,8 @@ public class RNSentryModule extends ReactContextBaseJavaModule {
         try {
             return ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0);
         } catch (PackageManager.NameNotFoundException e) {
-            logger.info("Error getting package info.");
+            logger.warning("Error getting package info.");
             return null;
-        }
-    }
-
-    private Level logLevel(int level) {
-        switch (level) {
-            case 1:
-                return Level.SEVERE;
-            case 2:
-                return Level.INFO;
-            case 3:
-                return Level.ALL;
-            default:
-                return Level.OFF;
         }
     }
 
@@ -352,5 +413,65 @@ public class RNSentryModule extends ReactContextBaseJavaModule {
         Sentry.configureScope(scope -> {
             scope.setTag(key, value);
         });
+    }
+
+    @ReactMethod
+    public void closeNativeSdk(Promise promise) {
+      Sentry.close();
+
+      disableNativeFramesTracking();
+
+      promise.resolve(true);
+    }
+
+    @ReactMethod
+    public void disableNativeFramesTracking() {
+        if (RNSentryModule.frameMetricsAggregator != null) {
+            RNSentryModule.frameMetricsAggregator.stop();
+            RNSentryModule.frameMetricsAggregator = null;
+        }
+    }
+
+    private void setEventOriginTag(SentryEvent event) {
+        SdkVersion sdk = event.getSdk();
+        if (sdk != null) {
+          switch (sdk.getName()) {
+          // If the event is from capacitor js, it gets set there and we do not handle it here.
+          case "sentry.native":
+            setEventEnvironmentTag(event, "android", "native");
+            break;
+          case "sentry.java.android":
+            setEventEnvironmentTag(event, "android", "java");
+            break;
+          default:
+            break;
+          }
+        }
+    }
+
+    private void setEventEnvironmentTag(SentryEvent event, String origin, String environment) {
+        event.setTag("event.origin", origin);
+        event.setTag("event.environment", environment);
+    }
+
+    private void addPackages(SentryEvent event, SdkVersion sdk) {
+        SdkVersion eventSdk = event.getSdk();
+        if (eventSdk != null && eventSdk.getName().equals("sentry.javascript.react-native") && sdk != null) {
+            List<SentryPackage> sentryPackages = sdk.getPackages();
+            if (sentryPackages != null) {
+                for (SentryPackage sentryPackage : sentryPackages) {
+                    eventSdk.addPackage(sentryPackage.getName(), sentryPackage.getVersion());
+                }
+            }
+
+            List<String> integrations = sdk.getIntegrations();
+            if (integrations != null) {
+                for (String integration : integrations) {
+                    eventSdk.addIntegration(integration);
+                }
+            }
+
+            event.setSdk(eventSdk);
+        }
     }
 }

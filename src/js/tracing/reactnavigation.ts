@@ -3,31 +3,35 @@ import { getGlobalObject, logger } from "@sentry/utils";
 
 import { BeforeNavigate } from "./reactnativetracing";
 import {
-  RoutingInstrumentation,
+  InternalRoutingInstrumentation,
+  OnConfirmRoute,
   TransactionCreator,
 } from "./routingInstrumentation";
-import { ReactNavigationTransactionContext } from "./types";
+import {
+  ReactNavigationTransactionContext,
+  RouteChangeContextData,
+} from "./types";
 
-export interface NavigationRouteV5 {
+export interface NavigationRoute {
   name: string;
   key: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   params?: Record<string, any>;
 }
 
-interface NavigationContainerV5 {
+interface NavigationContainer {
   addListener: (type: string, listener: () => void) => void;
-  getCurrentRoute: () => NavigationRouteV5;
+  getCurrentRoute: () => NavigationRoute;
 }
 
-interface ReactNavigationV5Options {
+interface ReactNavigationOptions {
   /**
    * The time the transaction will wait for route to mount before it is discarded.
    */
   routeChangeTimeoutMs: number;
 }
 
-const defaultOptions: ReactNavigationV5Options = {
+const defaultOptions: ReactNavigationOptions = {
   routeChangeTimeoutMs: 1000,
 };
 
@@ -39,22 +43,22 @@ const defaultOptions: ReactNavigationV5Options = {
  * - `_onStateChange` is then called AFTER the state change happens due to a dispatch and sets the route context onto the active transaction.
  * - If `_onStateChange` isn't called within `STATE_CHANGE_TIMEOUT_DURATION` of the dispatch, then the transaction is not sampled and finished.
  */
-export class ReactNavigationV5Instrumentation extends RoutingInstrumentation {
-  static instrumentationName: string = "react-navigation-v5";
+export class ReactNavigationInstrumentation extends InternalRoutingInstrumentation {
+  public static instrumentationName: string = "react-navigation-v5";
 
-  private _navigationContainer: NavigationContainerV5 | null = null;
+  private _navigationContainer: NavigationContainer | null = null;
 
   private readonly _maxRecentRouteLen: number = 200;
 
-  private _latestRoute?: NavigationRouteV5;
+  private _latestRoute?: NavigationRoute;
   private _latestTransaction?: TransactionType;
   private _initialStateHandled: boolean = false;
   private _stateChangeTimeout?: number | undefined;
   private _recentRouteKeys: string[] = [];
 
-  private _options: ReactNavigationV5Options;
+  private _options: ReactNavigationOptions;
 
-  constructor(options: Partial<ReactNavigationV5Options> = {}) {
+  public constructor(options: Partial<ReactNavigationOptions> = {}) {
     super();
 
     this._options = {
@@ -68,9 +72,14 @@ export class ReactNavigationV5Instrumentation extends RoutingInstrumentation {
    */
   public registerRoutingInstrumentation(
     listener: TransactionCreator,
-    beforeNavigate: BeforeNavigate
+    beforeNavigate: BeforeNavigate,
+    onConfirmRoute: OnConfirmRoute
   ): void {
-    super.registerRoutingInstrumentation(listener, beforeNavigate);
+    super.registerRoutingInstrumentation(
+      listener,
+      beforeNavigate,
+      onConfirmRoute
+    );
 
     // We create an initial state here to ensure a transaction gets created before the first route mounts.
     if (!this._initialStateHandled) {
@@ -88,7 +97,7 @@ export class ReactNavigationV5Instrumentation extends RoutingInstrumentation {
    * Pass the ref to the navigation container to register it to the instrumentation
    * @param navigationContainerRef Ref to a `NavigationContainer`
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
   public registerNavigationContainer(navigationContainerRef: any): void {
     const _global = getGlobalObject<{ __sentry_rn_v5_registered?: boolean }>();
 
@@ -147,9 +156,7 @@ export class ReactNavigationV5Instrumentation extends RoutingInstrumentation {
    * and gets the route information from there, @see _onStateChange
    */
   private _onDispatch(): void {
-    this._latestTransaction = this.onRouteWillChange(
-      BLANK_TRANSACTION_CONTEXT_V5
-    );
+    this._latestTransaction = this.onRouteWillChange(BLANK_TRANSACTION_CONTEXT);
 
     this._stateChangeTimeout = setTimeout(
       this._discardLatestTransaction.bind(this),
@@ -179,8 +186,25 @@ export class ReactNavigationV5Instrumentation extends RoutingInstrumentation {
         this._latestTransaction &&
         (!previousRoute || previousRoute.key !== route.key)
       ) {
-        const originalContext = this._latestTransaction.toContext() as typeof BLANK_TRANSACTION_CONTEXT_V5;
+        const originalContext = this._latestTransaction.toContext() as typeof BLANK_TRANSACTION_CONTEXT;
         const routeHasBeenSeen = this._recentRouteKeys.includes(route.key);
+
+        const data: RouteChangeContextData = {
+          ...originalContext.data,
+          route: {
+            name: route.name,
+            key: route.key,
+            params: route.params ?? {},
+            hasBeenSeen: routeHasBeenSeen,
+          },
+          previousRoute: previousRoute
+            ? {
+                name: previousRoute.name,
+                key: previousRoute.key,
+                params: previousRoute.params ?? {},
+              }
+            : null,
+        };
 
         const updatedContext: ReactNavigationTransactionContext = {
           ...originalContext,
@@ -189,22 +213,7 @@ export class ReactNavigationV5Instrumentation extends RoutingInstrumentation {
             ...originalContext.tags,
             "routing.route.name": route.name,
           },
-          data: {
-            ...originalContext.data,
-            route: {
-              name: route.name,
-              key: route.key,
-              params: route.params ?? {},
-              hasBeenSeen: routeHasBeenSeen,
-            },
-            previousRoute: previousRoute
-              ? {
-                  name: previousRoute.name,
-                  key: previousRoute.key,
-                  params: previousRoute.params ?? {},
-                }
-              : null,
-          },
+          data,
         };
 
         let finalContext = this._beforeNavigate?.(updatedContext);
@@ -235,6 +244,7 @@ export class ReactNavigationV5Instrumentation extends RoutingInstrumentation {
         }
 
         this._latestTransaction.updateWithContext(finalContext);
+        this._onConfirmRoute?.(finalContext);
       }
 
       this._pushRecentRouteKey(route.key);
@@ -263,12 +273,18 @@ export class ReactNavigationV5Instrumentation extends RoutingInstrumentation {
   }
 }
 
-export const BLANK_TRANSACTION_CONTEXT_V5 = {
+/**
+ * Backwards compatibility alias for ReactNavigationInstrumentation
+ * @deprecated Use ReactNavigationInstrumentation
+ */
+export const ReactNavigationV5Instrumentation = ReactNavigationInstrumentation;
+
+export const BLANK_TRANSACTION_CONTEXT = {
   name: "Route Change",
   op: "navigation",
   tags: {
     "routing.instrumentation":
-      ReactNavigationV5Instrumentation.instrumentationName,
+      ReactNavigationInstrumentation.instrumentationName,
   },
   data: {},
 };

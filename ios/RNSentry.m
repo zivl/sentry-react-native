@@ -7,12 +7,22 @@
 #endif
 
 #import <Sentry/Sentry.h>
+#import <Sentry/SentryScreenFrames.h>
+
+@interface SentrySDK (RNSentry)
+
++ (void)captureEnvelope:(SentryEnvelope *)envelope;
+
++ (void)storeEnvelope:(SentryEnvelope *)envelope;
+
+@end
+
+static bool didFetchAppStart;
 
 @implementation RNSentry {
-   bool sentHybridSdkDidBecomeActive;
+    bool sentHybridSdkDidBecomeActive;
+    SentryOptions *sentryOptions;
 }
-
-
 
 - (dispatch_queue_t)methodQueue
 {
@@ -30,10 +40,12 @@ RCT_EXPORT_MODULE()
     return @{@"nativeClientAvailable": @YES, @"nativeTransport": @YES};
 }
 
-RCT_EXPORT_METHOD(startWithOptions:(NSDictionary *_Nonnull)options
+RCT_EXPORT_METHOD(initNativeSdk:(NSDictionary *_Nonnull)options
                   resolve:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
+    PrivateSentrySDKOnly.appStartMeasurementHybridSDKMode = true;
+
     NSError *error = nil;
 
     SentryBeforeSendEventCallback beforeSend = ^SentryEvent*(SentryEvent *event) {
@@ -45,20 +57,21 @@ RCT_EXPORT_METHOD(startWithOptions:(NSDictionary *_Nonnull)options
             return nil;
         }
 
-        // set the event.origin tag to be ios if the event originated from the sentry-cocoa sdk.
-        if (event.sdk && [event.sdk[@"name"] isEqualToString:@"sentry.cocoa"]) {
-            NSMutableDictionary *newTags = [NSMutableDictionary new];
-            [newTags addEntriesFromDictionary:event.tags];
-            [newTags setValue:@"ios" forKey:@"event.origin"];
-            event.tags = newTags;
-        }
+        [self setEventOriginTag:event];
 
         return event;
     };
 
-    [options setValue:beforeSend forKey:@"beforeSend"];
+    NSMutableDictionary * mutableOptions =[options mutableCopy];
+    [mutableOptions setValue:beforeSend forKey:@"beforeSend"];
 
-    SentryOptions *sentryOptions = [[SentryOptions alloc] initWithDict:options didFailWithError:&error];
+    // remove performance traces sample rate and traces sampler since we don't want to synchronize these configurations
+    // to the Native SDKs.
+    // The user could tho initialize the SDK manually and set themselves.
+    [mutableOptions removeObjectForKey:@"tracesSampleRate"];
+    [mutableOptions removeObjectForKey:@"tracesSampler"];
+
+    sentryOptions = [[SentryOptions alloc] initWithDict:options didFailWithError:&error];
     if (error) {
         reject(@"SentryReactNative", error.localizedDescription, error);
         return;
@@ -74,10 +87,56 @@ RCT_EXPORT_METHOD(startWithOptions:(NSDictionary *_Nonnull)options
         sentHybridSdkDidBecomeActive = true;
     }
 
+
+
+
     resolve(@YES);
 }
 
-RCT_EXPORT_METHOD(deviceContexts:(RCTPromiseResolveBlock)resolve
+- (void)setEventOriginTag:(SentryEvent *)event {
+  if (event.sdk != nil) {
+    NSString *sdkName = event.sdk[@"name"];
+
+    // If the event is from react native, it gets set there and we do not handle
+    // it here.
+    if ([sdkName isEqualToString:@"sentry.cocoa"]) {
+      [self setEventEnvironmentTag:event origin:@"ios" environment:@"native"];
+    }
+  }
+}
+
+- (void)setEventEnvironmentTag:(SentryEvent *)event
+                        origin:(NSString *)origin
+                   environment:(NSString *)environment {
+  NSMutableDictionary *newTags = [NSMutableDictionary new];
+
+  if (nil != event.tags && [event.tags count] > 0) {
+    [newTags addEntriesFromDictionary:event.tags];
+  }
+  if (nil != origin) {
+    [newTags setValue:origin forKey:@"event.origin"];
+  }
+  if (nil != environment) {
+    [newTags setValue:environment forKey:@"event.environment"];
+  }
+
+  event.tags = newTags;
+}
+
+RCT_EXPORT_METHOD(fetchNativeSdkInfo:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    if (sentryOptions == nil) {
+        return reject(@"SentryReactNative",@"Called fetchNativeSdkInfo without initializing the SDK first.", nil);
+    }
+
+    resolve(@{
+        @"name": sentryOptions.sdkInfo.name,
+        @"version": sentryOptions.sdkInfo.version
+            });
+}
+
+RCT_EXPORT_METHOD(fetchNativeDeviceContexts:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
     NSLog(@"Bridge call to: deviceContexts");
@@ -96,27 +155,52 @@ RCT_EXPORT_METHOD(deviceContexts:(RCTPromiseResolveBlock)resolve
     }];
 }
 
-RCT_EXPORT_METHOD(setLogLevel:(int)level)
+RCT_EXPORT_METHOD(fetchNativeAppStart:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
 {
-    SentryLogLevel cocoaLevel;
-    switch (level) {
-        case 1:
-            cocoaLevel = kSentryLogLevelError;
-            break;
-        case 2:
-            cocoaLevel = kSentryLogLevelDebug;
-            break;
-        case 3:
-            cocoaLevel = kSentryLogLevelVerbose;
-            break;
-        default:
-            cocoaLevel = kSentryLogLevelNone;
-            break;
+
+    SentryAppStartMeasurement *appStartMeasurement = PrivateSentrySDKOnly.appStartMeasurement;
+
+    if (appStartMeasurement == nil) {
+        resolve(nil);
+    } else {
+        BOOL isColdStart = appStartMeasurement.type == SentryAppStartTypeCold;
+
+        resolve(@{
+            @"isColdStart": [NSNumber numberWithBool:isColdStart],
+            @"appStartTime": [NSNumber numberWithDouble:(appStartMeasurement.appStartTimestamp.timeIntervalSince1970 * 1000)],
+            @"didFetchAppStart": [NSNumber numberWithBool:didFetchAppStart],
+                });
+
     }
-    [SentrySDK setLogLevel:cocoaLevel];
+
+    // This is always set to true, as we would only allow an app start fetch to only happen once
+    // in the case of a JS bundle reload, we do not want it to be instrumented again.
+    didFetchAppStart = true;
 }
 
-RCT_EXPORT_METHOD(fetchRelease:(RCTPromiseResolveBlock)resolve
+RCT_EXPORT_METHOD(fetchNativeFrames:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+
+    if (PrivateSentrySDKOnly.isFramesTrackingRunning) {
+        SentryScreenFrames *frames = PrivateSentrySDKOnly.currentScreenFrames;
+
+        if (frames == nil) {
+            resolve(nil);
+        }
+
+        resolve(@{
+            @"totalFrames": [NSNumber numberWithLong:frames.total],
+            @"frozenFrames": [NSNumber numberWithLong:frames.frozen],
+            @"slowFrames": [NSNumber numberWithLong:frames.slow],
+        });
+    } else {
+      resolve(nil);
+    }
+}
+
+RCT_EXPORT_METHOD(fetchNativeRelease:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
     NSDictionary *infoDict = [[NSBundle mainBundle] infoDictionary];
@@ -134,7 +218,7 @@ RCT_EXPORT_METHOD(captureEnvelope:(NSDictionary * _Nonnull)envelopeDict
     if ([NSJSONSerialization isValidJSONObject:envelopeDict]) {
         SentrySdkInfo *sdkInfo = [[SentrySdkInfo alloc] initWithDict:envelopeDict[@"header"]];
         SentryId *eventId = [[SentryId alloc] initWithUUIDString:envelopeDict[@"header"][@"event_id"]];
-        SentryEnvelopeHeader *envelopeHeader = [[SentryEnvelopeHeader alloc] initWithId:eventId andSdkInfo:sdkInfo];
+        SentryEnvelopeHeader *envelopeHeader = [[SentryEnvelopeHeader alloc] initWithId:eventId sdkInfo:sdkInfo traceState:nil];
 
         NSError *error;
         NSData *envelopeItemData = [NSJSONSerialization dataWithJSONObject:envelopeDict[@"payload"] options:0 error:&error];
@@ -154,15 +238,13 @@ RCT_EXPORT_METHOD(captureEnvelope:(NSDictionary * _Nonnull)envelopeDict
         SentryEnvelope *envelope = [[SentryEnvelope alloc] initWithHeader:envelopeHeader singleItem:envelopeItem];
 
         #if DEBUG
-            [[SentrySDK currentHub] captureEnvelope:envelope];
+            [SentrySDK captureEnvelope:envelope];
         #else
             if ([envelopeDict[@"payload"][@"level"] isEqualToString:@"fatal"]) {
                 // Storing to disk happens asynchronously with captureEnvelope
-                // We need to make sure the event is written to disk before resolving the promise.
-                // This could be replaced by SentrySDK.flush() when available.
-                [[[SentrySDK currentHub] getClient] storeEnvelope:envelope];
+                [SentrySDK storeEnvelope:envelope];
             } else {
-                [[SentrySDK currentHub] captureEnvelope:envelope];
+                [SentrySDK captureEnvelope:envelope];
             }
         #endif
         resolve(@YES);
@@ -264,6 +346,18 @@ RCT_EXPORT_METHOD(setTag:(NSString *)key
 RCT_EXPORT_METHOD(crash)
 {
     [SentrySDK crash];
+}
+
+RCT_EXPORT_METHOD(closeNativeSdk:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+  [SentrySDK close];
+  resolve(@YES);
+}
+
+RCT_EXPORT_METHOD(disableNativeFramesTracking)
+{
+    // Do nothing on iOS, this bridge method only has an effect on android.
 }
 
 @end

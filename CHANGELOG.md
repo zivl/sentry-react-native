@@ -1,6 +1,160 @@
 # Changelog
 
-## Unreleased
+## 3.2.6
+
+- feat(android): Support monorepo in gradle plugin #1917
+- fix: Remove dependency on promiseRejectionTrackingOptions #1928
+
+## 3.2.5
+
+- fix: Fix dynamic require for promise options bypassing try catch block and crashing apps #1923
+
+## 3.2.4
+
+- fix: Warn when promise rejections won't be caught #1886
+- Bump: Sentry Android to 5.4.3 and Sentry Cocoa to 7.5.4 #1920
+
+## 3.2.3
+
+### Various fixes & improvements
+
+- fix(ios): tracesSampler becomes NSNull in iOS and the app cannot be started (#1872) by @marandaneto
+
+## 3.2.2
+
+- Bump Sentry Android SDK to 5.3.0 #1860
+
+## 3.2.1
+
+### Various fixes & improvements
+
+- feat(ios): Missing config `enableOutOfMemoryTracking` on iOS/Mac (#1858) by @marandaneto
+
+## 3.2.0
+
+- feat: Routing instrumentation will emit breadcrumbs on route change and set route tag #1837
+- Bump Sentry Android SDK to 5.2.4 ([#1844](https://github.com/getsentry/sentry-react-native/pull/1844))
+
+  - [changelog](https://github.com/getsentry/sentry-java/blob/5.2.4/CHANGELOG.md)
+  - [diff](https://github.com/getsentry/sentry-java/compare/5.2.0...5.2.4)
+
+- Bump Sentry Cocoa SDK to 7.4.8 ([#1856](https://github.com/getsentry/sentry-react-native/pull/1856))
+  - [changelog](https://github.com/getsentry/sentry-cocoa/blob/7.4.8/CHANGELOG.md)
+  - [diff](https://github.com/getsentry/sentry-cocoa/compare/7.3.0...7.4.8)
+
+## 3.2.0-beta.2
+
+- fix: Type React Native Navigation instrumentation constructor argument as unknown to avoid typescript errors #1817
+
+## 3.2.0-beta.1
+
+- feat: Routing instrumentation for React Native Navigation #1774
+
+## 3.1.1
+
+- Bump Sentry Android SDK to 5.2.0 ([#1785](https://github.com/getsentry/sentry-react-native/pull/1785))
+
+  - [changelog](https://github.com/getsentry/sentry-java/blob/5.2.0/CHANGELOG.md)
+  - [diff](https://github.com/getsentry/sentry-java/compare/5.1.2...5.2.0)
+
+- Bump Sentry Cocoa SDK to 7.3.0 ([#1785](https://github.com/getsentry/sentry-react-native/pull/1785))
+  - [changelog](https://github.com/getsentry/sentry-cocoa/blob/7.3.0/CHANGELOG.md)
+  - [diff](https://github.com/getsentry/sentry-cocoa/compare/7.2.6...7.3.0)
+
+## 3.1.0
+
+- Feat: Allow custom release for source map upload scripts #1548
+- ref: Remove v5 prefix from react navigation instrumentation to support v6 #1768
+
+## 3.0.3
+
+- Fix: Set Java 8 for source and target compatibility if not using AGP >= 4.2.x (#1763)
+
+## 3.0.2
+
+- Bump: Android tooling API 30 (#1761)
+
+## 3.0.1
+
+- fix: Add sentry-cli as a dependency #1755
+
+## 3.0.0
+
+- feat: Align `event.origin`, `event.environment` with other hybrid sdks #1749
+- feat: Add native sdk package info onto events #1749
+- build(js): Bump sentry-javascript dependencies to 6.12.0 #1750
+- fix: Fix native frames not being added to transactions #1752
+- build(android): Bump sentry-android to 5.1.2 #1753
+- build(ios): Bump sentry-cocoa to 7.2.6 #1753
+- fix: Move @sentry/wizard dependency to devDependencies #1751
+
+## 3.0.0-beta.3
+
+- feat: Add `wrap` wrapper method with profiler and touch event boundary #1728
+- feat: App-start measurements, if using the `wrap` wrapper, will now finish on the root component mount #1728
+
+## 3.0.0-beta.2
+
+- feat: Native slow/frozen frames measurements #1711
+
+## 3.0.0-beta.1
+
+- build(ios): Bump sentry-cocoa to 7.2.0-beta.9 #1704
+- build(android): Bump sentry-android to 5.1.0-beta.9 #1704
+- feat: Add app start measurements to the first transaction #1704
+- feat: Create an initial initial ui.load transaction by default #1704
+- feat: Add `enableAutoPerformanceTracking` flag that enables auto performance when tracing is enabled #1704
+
+## 2.7.0-beta.1
+
+- feat: Track stalls in the JavaScript event loop as measurements #1542
+
+## 2.6.2
+
+- fix: Fix the error handler (error dialog) not called in dev #1712
+
+## 2.6.1
+
+- build(ios): Bump sentry-cocoa to 7.1.4 #1700
+
+## 2.6.0
+
+- feat: Support the `sendDefaultPii` option. #1634
+- build(android): Bump sentry-android to 5.1.0-beta.2 #1645
+- fix: Fix transactions on Android having clock drift and missing span data #1645
+
+## 2.5.2
+
+- fix: Fix `Sentry.close()` not correctly resolving the promise on iOS. #1617
+- build(js): Bump sentry-javascript dependencies to 6.7.1 #1618
+
+## 2.5.1
+
+- fix: Fatal uncaught events should be tagged handled:false #1597
+- fix: Fix duplicate breadcrumbs on Android #1598
+
+## 2.5.0
+
+### Dependencies
+
+- build(js): Bump sentry-javascript dependencies to 6.5.1 #1588
+- build(ios): Bump sentry-cocoa to 7.0.0 and remove setLogLevel #1459
+- build(android): Bump sentry-android to 5.0.1 #1576
+
+### Features
+
+- feat: `Sentry.flush()` to flush events to disk and returns a promise #1547
+- feat: `Sentry.close()` method to fully disable the SDK on all layers and returns a promise #1457
+
+### Fixes
+
+- fix: Process "log" levels in breadcrumbs before sending to native #1565
+
+## 2.5.0-beta.1
+
+- build(ios): Bump sentry-cocoa to 7.0.0 and remove setLogLevel #1459
+- feat: Close method to fully disable the SDK on all layers #1457
+- build(android): Bump Android SDK to 5.0.0-beta.1 #1476
 
 ## 2.4.3
 
@@ -34,7 +188,7 @@
 
 ## 2.2.1
 
-- build(js): Bump @sentry/* dependencies on javascript to 6.2.0 #1354
+- build(js): Bump @sentry/\* dependencies on javascript to 6.2.0 #1354
 - fix: Fix react-dom dependency issue. #1354
 - build(android): Bump sentry-android to 4.1.0 #1334
 

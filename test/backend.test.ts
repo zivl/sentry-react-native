@@ -1,3 +1,4 @@
+import { NoopTransport } from "@sentry/core";
 import * as RN from "react-native";
 
 import { ReactNativeBackend } from "../src/js/backend";
@@ -11,18 +12,8 @@ jest.mock(
   () => ({
     NativeModules: {
       RNSentry: {
+        initNativeSdk: jest.fn(() => Promise.resolve(true)),
         crash: jest.fn(),
-        nativeClientAvailable: true,
-        nativeTransport: true,
-        setLogLevel: jest.fn(),
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        startWithOptions: async (options: any): Promise<boolean> => {
-          if (typeof options.dsn !== "string") {
-            throw new Error();
-          }
-          return true;
-        },
       },
     },
     Platform: {
@@ -40,7 +31,7 @@ jest.mock(
 );
 
 afterEach(() => {
-  jest.resetAllMocks();
+  jest.clearAllMocks();
   NATIVE.enableNative = true;
 });
 
@@ -100,6 +91,7 @@ describe("Tests ReactNativeBackend", () => {
       new ReactNativeBackend({
         dsn: EXAMPLE_DSN,
         enableNative: true,
+        transport: NoopTransport,
         onReady: ({ didCallNativeInit }) => {
           expect(didCallNativeInit).toBe(true);
 
@@ -112,6 +104,7 @@ describe("Tests ReactNativeBackend", () => {
       new ReactNativeBackend({
         dsn: EXAMPLE_DSN,
         enableNative: false,
+        transport: NoopTransport,
         onReady: ({ didCallNativeInit }) => {
           expect(didCallNativeInit).toBe(false);
 
@@ -123,13 +116,14 @@ describe("Tests ReactNativeBackend", () => {
     test("calls onReady callback with false if Native SDK failed to initialize", (done) => {
       const RN = require("react-native");
 
-      RN.NativeModules.RNSentry.startWithOptions = async () => {
+      RN.NativeModules.RNSentry.initNativeSdk = async () => {
         throw new Error();
       };
 
       new ReactNativeBackend({
         dsn: EXAMPLE_DSN,
         enableNative: true,
+        transport: NoopTransport,
         onReady: ({ didCallNativeInit }) => {
           expect(didCallNativeInit).toBe(false);
 

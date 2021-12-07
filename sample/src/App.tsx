@@ -17,7 +17,6 @@ import EndToEndTestsScreen from './screens/EndToEndTestsScreen';
 import ReduxScreen from './screens/ReduxScreen';
 
 import {store} from './reduxApp';
-import {version as packageVersion} from '../../package.json';
 import {SENTRY_INTERNAL_DSN} from './dsn';
 
 const reactNavigationV5Instrumentation = new Sentry.ReactNavigationV5Instrumentation(
@@ -25,7 +24,6 @@ const reactNavigationV5Instrumentation = new Sentry.ReactNavigationV5Instrumenta
     routeChangeTimeoutMs: 500, // How long it will wait for the route change to complete. Default is 1000ms
   },
 );
-
 Sentry.init({
   // Replace the example DSN below with your own DSN:
   dsn: SENTRY_INTERNAL_DSN,
@@ -41,7 +39,7 @@ Sentry.init({
   maxBreadcrumbs: 150, // Extend from the default 100 breadcrumbs.
   integrations: [
     new Sentry.ReactNativeTracing({
-      idleTimeout: 5000,
+      idleTimeout: 5000, // This is the default timeout
       routingInstrumentation: reactNavigationV5Instrumentation,
       tracingOrigins: ['localhost', /^\//, /^https:\/\//],
       beforeNavigate: (context: Sentry.ReactNavigationTransactionContext) => {
@@ -61,8 +59,8 @@ Sentry.init({
   tracesSampleRate: 1.0,
   // Sets the `release` and `dist` on Sentry events. Make sure this matches EXACTLY with the values on your sourcemaps
   // otherwise they will not work.
-  release: packageVersion,
-  dist: `${packageVersion}.0`,
+  release: '1.2.3',
+  dist: `1.2.3.0`,
 });
 
 const Stack = createStackNavigator();
@@ -95,6 +93,5 @@ const App = () => {
   );
 };
 
-export default Sentry.withTouchEventBoundary(App, {
-  ignoreNames: ['Provider', 'UselessName', /^SomeRegex/],
-});
+// Wrap your app to get more features out of the box such as auto performance monitoring.
+export default Sentry.wrap(App);
