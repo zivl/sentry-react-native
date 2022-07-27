@@ -11,6 +11,9 @@
 - Bump Cocoa SDK to v7.22.0 ([#2392](https://github.com/getsentry/sentry-react-native/pull/2392))
   - [changelog](https://github.com/getsentry/sentry-cocoa/blob/master/CHANGELOG.md#7220)
   - [diff](https://github.com/getsentry/sentry-cocoa/compare/7.21.0...7.22.0)
+- Bump Wizard to v2.0.0 ([#2390](https://github.com/getsentry/sentry-react-native/pull/2390))
+  - [changelog](https://github.com/getsentry/sentry-wizard/blob/master/CHANGELOG.md#v200)
+  - [diff](https://github.com/getsentry/sentry-wizard/compare/v1.2.17...v2.0.0)
 
 ## 4.2.0
 
